@@ -23,7 +23,7 @@ private static final Map<String, List<String>> interestToCourses = new HashMap<>
     interestToCourses.put("math", Arrays.asList(
         "Algebra I",
         "Calculus Basics",
-        "Statistics 101",
+        "Statistics",
         "Discrete Mathematics"
     ));
 
@@ -40,7 +40,7 @@ private static final Map<String, List<String>> interestToCourses = new HashMap<>
         "Java for Beginners",
         "Python Programming",
         "Data Structures in C++",
-        "Web Development 101"
+        "Web Development"
     ));
 
     // 设计类兴趣课程
@@ -54,7 +54,7 @@ private static final Map<String, List<String>> interestToCourses = new HashMap<>
     // 商业类兴趣课程
     interestToCourses.put("business", Arrays.asList(
         "Introduction to Marketing",
-        "Entrepreneurship 101",
+        "Entrepreneurship",
         "Business Strategy",
         "Financial Accounting Basics"
     ));

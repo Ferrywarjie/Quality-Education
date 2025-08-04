@@ -4,135 +4,165 @@ package com.edusphere.progress;
  *
  * @author Tan Wei Jie
  */
+// CourseRecommendationClientGUI.java
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.StatusRuntimeException;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.concurrent.TimeUnit;
 
 /**
- * GUI 客户端：用于测试 ProgressTrackerService 的功能
- * 包含三种操作：
- * - 添加课程完成记录
- * - 查询课程是否完成
- * - 获取全部已完成课程列表
+ * ProgressTrackerClientGUI
+ * 学习进度跟踪服务的 GUI 客户端实现，用于测试并互动访问 ProgressTrackerService
+ * 支持操作:
+ * ✓ 记录进度
+ * ✓ 查询进度
+ * ✓ 列出所有完成的课程
  */
 public class ProgressTrackerClientGUI extends JFrame {
 
+    // 用户输入组件
     private final JTextField userIdField = new JTextField(15);
     private final JTextField courseField = new JTextField(15);
     private final JTextArea outputArea = new JTextArea(8, 30);
 
-    // gRPC 通信通道和服务 stub
+    // gRPC 通信通道和 stub
     private final ManagedChannel channel;
-    private final ProgressTrackerServiceGrpc.ProgressTrackerServiceBlockingStub blockingStub;
 
     public ProgressTrackerClientGUI() {
         super("学习进度跟踪客户端");
 
-        // 初始化 gRPC 通道（端口要与你服务端对应）
-        channel = ManagedChannelBuilder.forAddress("localhost", 50051)
-                .usePlaintext()
-                .build();
+         // 初始化 gRPC 通道：连接 localhost:50051
+ channel = ManagedChannelBuilder.forAddress("localhost", 50051)
+         .usePlaintext()
+         .build();
 
-        blockingStub = ProgressTrackerServiceGrpc.newBlockingStub(channel);
+         // 构造界面布局
+         setLayout(new BorderLayout());
 
-        // GUI 布局配置
-        setLayout(new BorderLayout());
+         JPanel inputPanel = new JPanel(new GridLayout(3, 2));
+         inputPanel.add(new JLabel("用户 ID："));
+         inputPanel.add(userIdField);
+         inputPanel.add(new JLabel("课程名称："));
+         inputPanel.add(courseField);
 
-        JPanel inputPanel = new JPanel();
-        inputPanel.setLayout(new GridLayout(3, 2));
-        inputPanel.add(new JLabel("用户 ID："));
-        inputPanel.add(userIdField);
-        inputPanel.add(new JLabel("课程名称："));
-        inputPanel.add(courseField);
+         JButton recordButton = new JButton("记录进度");
+         JButton checkButton = new JButton("查询课程是否完成");
+         JButton listButton = new JButton("列出已完成课程");
 
-        JButton recordButton = new JButton("记录进度");
-        JButton checkButton = new JButton("检查课程是否完成");
-        JButton listButton = new JButton("列出已完成课程");
+         JPanel buttonPanel = new JPanel();
+         buttonPanel.add(recordButton);
+         buttonPanel.add(checkButton);
+         buttonPanel.add(listButton);
 
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.add(recordButton);
-        buttonPanel.add(checkButton);
-        buttonPanel.add(listButton);
+         outputArea.setEditable(false);
+         JScrollPane scrollPane = new JScrollPane(outputArea);
 
-        outputArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(outputArea);
+         add(inputPanel, BorderLayout.NORTH);
+         add(buttonPanel, BorderLayout.CENTER);
+         add(scrollPane, BorderLayout.SOUTH);
 
-        add(inputPanel, BorderLayout.NORTH);
-        add(buttonPanel, BorderLayout.CENTER);
-        add(scrollPane, BorderLayout.SOUTH);
+         // 1. 记录进度操作
+         recordButton.addActionListener(e -> {
+         String userId = userIdField.getText().trim();
+         String course = courseField.getText().trim();
 
-        // 绑定按钮点击事件：记录进度
-        recordButton.addActionListener(e -> {
-            String userId = userIdField.getText().trim();
-            String course = courseField.getText().trim();
+         if (userId.isEmpty() || course.isEmpty()) {
+           outputArea.setText("请填写用户 ID 和课程名");
+            return;
+         }
 
-            if (userId.isEmpty() || course.isEmpty()) {
-                outputArea.setText("请填写用户 ID 和课程名");
-                return;
-            }
+         try {
+           ProgressRequest request = ProgressRequest.newBuilder()
+                 .setUserId(userId)
+                 .setCourseName(course)
+                 .build();
 
-            ProgressRequest request = ProgressRequest.newBuilder()
-                    .setUserId(userId)
-                    .setCourseName(course)
-                    .build();
+            ProgressTrackerServiceGrpc.ProgressTrackerServiceBlockingStub stub =
+                 ProgressTrackerServiceGrpc.newBlockingStub(channel).withDeadlineAfter(3, TimeUnit.SECONDS);
 
-            ProgressResponse response = blockingStub.recordProgress(request);
-            outputArea.setText("记录结果：" + response.getMessage());
-        });
+            ProgressResponse response = stub.recordProgress(request);
+              outputArea.setText("记录结果：" + response.getMessage());
+               } catch (StatusRuntimeException ex) {
+                 outputArea.setText("通信错误：" + ex.getStatus().getCode());
+               } catch (Exception ex) {
+                   outputArea.setText("发生异常：" + ex.getMessage());
+              }
+     });
 
-        // 查询课程是否已完成
-        checkButton.addActionListener(e -> {
-            String userId = userIdField.getText().trim();
-            String course = courseField.getText().trim();
+     // 2. 查询课程是否完成
+     checkButton.addActionListener(e -> {
+     String userId = userIdField.getText().trim();
+     String course = courseField.getText().trim();
 
-            if (userId.isEmpty() || course.isEmpty()) {
-                outputArea.setText("请填写用户 ID 和课程名");
-                return;
-            }
+     if (userId.isEmpty() || course.isEmpty()) {
+         outputArea.setText("请填写用户 ID 和课程名");
+         return;
+     }
 
-            ProgressQuery query = ProgressQuery.newBuilder()
-                    .setUserId(userId)
-                    .setCourseName(course)
-                    .build();
+     try {
+         ProgressQuery query = ProgressQuery.newBuilder()
+                 .setUserId(userId)
+                 .setCourseName(course)
+                 .build();
 
-            ProgressStatus status = blockingStub.checkProgress(query);
-            outputArea.setText("课程 \"" + course + "\" 完成状态：" + (status.getCompleted() ? "✅ 已完成" : "❌ 未完成"));
-        });
+         ProgressTrackerServiceGrpc.ProgressTrackerServiceBlockingStub stub =
+                 ProgressTrackerServiceGrpc.newBlockingStub(channel).withDeadlineAfter(3, TimeUnit.SECONDS);
 
-        // 列出已完成课程
-        listButton.addActionListener(e -> {
-            String userId = userIdField.getText().trim();
-            if (userId.isEmpty()) {
-                outputArea.setText("请填写用户 ID");
-                return;
-            }
+         ProgressStatus status = stub.checkProgress(query);
+         outputArea.setText("课程 \"" + course + "\" 完成状态：" + (status.getCompleted() ? "已完成" : "未完成"));
+         } catch (StatusRuntimeException ex) {
+             outputArea.setText("通信错误：" + ex.getStatus().getCode());
+          } catch (Exception ex) {
+               outputArea.setText("异常错误：" + ex.getMessage());
+       }
+     });
 
-            UserRequest req = UserRequest.newBuilder()
-                    .setUserId(userId)
-                    .build();
+          // 3. 列出所有完成课程
+         listButton.addActionListener(e -> {
+          String userId = userIdField.getText().trim();
+           if (userId.isEmpty()) {
+            outputArea.setText("请填写用户 ID");
+              return;
+         }
 
-            CourseList result = blockingStub.listCompletedCourses(req);
+         try {
+           UserRequest req = UserRequest.newBuilder()
+                 .setUserId(userId)
+                 .build();
 
-            StringBuilder sb = new StringBuilder("已完成课程列表：\n");
-            for (String course : result.getCourseNamesList()) {
-                sb.append("✔ ").append(course).append("\n");
-            }
+            ProgressTrackerServiceGrpc.ProgressTrackerServiceBlockingStub stub =
+                 ProgressTrackerServiceGrpc.newBlockingStub(channel).withDeadlineAfter(3, TimeUnit.SECONDS);
 
-            outputArea.setText(sb.toString());
-        });
+            CourseList result = stub.listCompletedCourses(req);
 
-        // 基本窗口设置
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        pack();
-        setVisible(true);
-    }
+             if (result.getCourseNamesCount() == 0) {
+                  outputArea.setText("没有完成的课程。");
+             } else {
+                  StringBuilder sb = new StringBuilder("已完成课程列表：\n");
+                     for (String course : result.getCourseNamesList()) {
+                       sb.append(" - ").append(course).append("\n");
+                   }
+                outputArea.setText(sb.toString());
+             }
+           } 
+               catch (StatusRuntimeException ex) {
+                 outputArea.setText("通信错误：" + ex.getStatus().getCode());
+               } catch (Exception ex) {
+         outputArea.setText("异常错误：" + ex.getMessage());
+       }
+     });
 
-    // 主函数入口
+      // 基本窗口设置
+      setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+      pack();
+      setVisible(true);
+}
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(ProgressTrackerClientGUI::new);
     }
 }
-

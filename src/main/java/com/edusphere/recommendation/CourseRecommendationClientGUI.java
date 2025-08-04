@@ -4,99 +4,105 @@ package com.edusphere.recommendation;
  *
  * @author Tan Wei Jie
  */
+// CourseRecommendationClientGUI.java
+
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.StatusRuntimeException;
+
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 课程推荐客户端图形界面
- * 通过用户输入兴趣标签，发送请求给 gRPC 服务，接收并展示推荐课程
+ * 课程推荐客户端 GUI：允许学生输入兴趣列表和学号，从服务器获取推荐课程列表。
+ * 与 course_recommendation.proto 文件中的定义一致：使用 GetRecommendations 方法并传入 RecommendationRequest（包含 student_id 和 repeated interests）
  */
 public class CourseRecommendationClientGUI extends JFrame {
 
-    private JTextField interestsField;
-    private JTextArea resultArea;
-    private JButton sendButton;
+    // 用户输入组件：学号和兴趣（支持多个兴趣，用英文逗号隔开）
+    private final JTextField studentIdField = new JTextField(10);
+    private final JTextField interestsField = new JTextField(20);
+    private final JTextArea outputArea = new JTextArea(8, 30);
 
-    // 构造方法：创建界面和 gRPC 调用逻辑
+    // gRPC 通信通道与 stub
+    private final ManagedChannel channel;
+    private final CourseRecommendationServiceGrpc.CourseRecommendationServiceBlockingStub blockingStub;
+
     public CourseRecommendationClientGUI() {
-        setTitle("课程推荐系统客户端");
-        setSize(500, 400);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout());
+        super("课程推荐客户端");
 
-        // 输入面板（上部）
-        JPanel inputPanel = new JPanel(new FlowLayout());
-        inputPanel.add(new JLabel("请输入兴趣（用逗号分隔）："));
-        interestsField = new JTextField(30);
+        // 建立 gRPC 连接，连接本地 50051 端口
+        channel = ManagedChannelBuilder.forAddress("localhost", 50051)
+                .usePlaintext()
+                .build();
+
+        // 创建阻塞式 stub，并设置调用超时（3 秒）
+        blockingStub = CourseRecommendationServiceGrpc.newBlockingStub(channel)
+                .withDeadlineAfter(300, TimeUnit.SECONDS);
+
+        // 构建 Swing 界面
+        JPanel inputPanel = new JPanel(new GridLayout(3, 2));
+        inputPanel.add(new JLabel("学生 ID:"));
+        inputPanel.add(studentIdField);
+        inputPanel.add(new JLabel("兴趣（用逗号分隔）:"));
         inputPanel.add(interestsField);
+        JButton sendButton = new JButton("获取推荐课程");
+        inputPanel.add(sendButton);
 
-        // 结果展示区域（中部）
-        resultArea = new JTextArea();
-        resultArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(resultArea);
+        // 点击按钮时执行调用逻辑
+        sendButton.addActionListener(e -> {
+            String studentId = studentIdField.getText().trim();
+            String interestsRaw = interestsField.getText().trim();
 
-        // 按钮面板（下部）
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        sendButton = new JButton("获取推荐课程");
-        buttonPanel.add(sendButton);
-
-        // 添加各部分到界面
-        add(inputPanel, BorderLayout.NORTH);
-        add(scrollPane, BorderLayout.CENTER);
-        add(buttonPanel, BorderLayout.SOUTH);
-
-        // 设置按钮点击逻辑（发送请求到 gRPC）
-        sendButton.addActionListener((ActionEvent e) -> {
-            // 从文本框获取用户输入的兴趣
-            String interestText = interestsField.getText().trim();
-            if (interestText.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "请输入至少一个兴趣！");
+            if (studentId.isEmpty() || interestsRaw.isEmpty()) {
+                outputArea.setText("请输入学生 ID 和至少一个兴趣。");
                 return;
             }
 
-            // 将兴趣字符串按逗号分割，生成列表
-            List<String> interests = Arrays.asList(interestText.split("\\s*,\\s*"));
-
-            // 创建 gRPC 渠道连接（连接到本地服务端）
-            ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 50051)
-                    .usePlaintext()
-                    .build();
-
-            // 创建 gRPC stub，用于发送请求
-            CourseRecommendationServiceGrpc.CourseRecommendationServiceBlockingStub stub =
-                    CourseRecommendationServiceGrpc.newBlockingStub(channel);
+            // 解析兴趣字符串为列表（通过逗号）
+            List<String> interests = Arrays.stream(interestsRaw.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
 
             // 构造请求对象
             RecommendationRequest request = RecommendationRequest.newBuilder()
+                    .setStudentId(studentId)
                     .addAllInterests(interests)
-                    .setStudentId("student123")  // 这里只是示例 ID
                     .build();
 
-            // 发送请求并获取响应（同步调用）
-            RecommendationResponse response = stub.getRecommendations(request);
+            try {
+                // 发起 RPC 请求
+                RecommendationResponse response = blockingStub.getRecommendations(request);
+                List<String> courses = response.getCoursesList();
 
-            // 将返回的课程展示到文本框中
-            resultArea.setText("推荐课程：\n");
-            for (String course : response.getCoursesList()) {
-                resultArea.append("• " + course + "\n");
+                // 显示返回结果
+                if (courses.isEmpty()) {
+                    outputArea.setText("未找到匹配课程。");
+                } else {
+                    outputArea.setText("推荐课程:\n" + String.join("\n", courses));
+                }
+            } catch (StatusRuntimeException ex) {
+                outputArea.setText("通信错误: " + ex.getStatus().getCode() + "\n" + ex.getStatus().getDescription());
             }
-
-            // 关闭连接
-            channel.shutdown();
         });
+
+        // 添加界面元素
+        add(inputPanel, BorderLayout.NORTH);
+        add(new JScrollPane(outputArea), BorderLayout.CENTER);
+
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        pack();
+        setVisible(true);
     }
 
-    // 主方法：运行界面
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            CourseRecommendationClientGUI gui = new CourseRecommendationClientGUI();
-            gui.setVisible(true);
-        });
+        SwingUtilities.invokeLater(CourseRecommendationClientGUI::new);
     }
 }
+
+

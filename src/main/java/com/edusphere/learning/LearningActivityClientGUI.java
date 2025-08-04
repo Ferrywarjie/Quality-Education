@@ -5,124 +5,122 @@ package com.edusphere.learning;
  * @author Tan Wei Jie
  */
 
+// LearningActivityClientGUI.java
+
+// LearningActivityClientGUI.java
+
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.stub.StreamObserver;
+import io.grpc.StatusRuntimeException;
 
 import javax.swing.*;
 import java.awt.*;
 import java.time.LocalDate;
+import java.util.concurrent.TimeUnit;
 
+/**
+ * 学习活动客户端 GUI：允许学生提交学习记录至 gRPC 服务端。
+ *
+ */
 public class LearningActivityClientGUI extends JFrame {
 
-    private JTextField studentIdField;
-    private JTextField activityTypeField;
-    private JTextField minutesField;
-    private JTextArea outputArea;
+    // 用户界面输入控件
+    private final JTextField studentIdField = new JTextField(10);
+    private final JTextField activityTypeField = new JTextField(10);
+    private final JTextField minutesField = new JTextField(10);
+    private final JTextField dateField = new JTextField(10);
+    private final JTextArea outputArea = new JTextArea(8, 30);
 
+    // gRPC 通信相关
     private final ManagedChannel channel;
-    private final LearningActivityServiceGrpc.LearningActivityServiceStub asyncStub;
     private final LearningActivityServiceGrpc.LearningActivityServiceBlockingStub blockingStub;
 
     public LearningActivityClientGUI() {
-        // 建立连接到 gRPC 服务器
-        channel = ManagedChannelBuilder.forAddress("localhost", 50051)
-                .usePlaintext()
-                .build();
+        super("学习活动客户端");
 
-        asyncStub = LearningActivityServiceGrpc.newStub(channel);
-        blockingStub = LearningActivityServiceGrpc.newBlockingStub(channel);
+         // 初始化 gRPC 通道（连接服务器 localhost:50051）
+         channel = ManagedChannelBuilder.forAddress("localhost", 50051)
+         .usePlaintext()
+         .build();
 
-        initUI();
-    }
+         // 创建阻塞式 stub，设置调用超时为 300秒
+         blockingStub = LearningActivityServiceGrpc.newBlockingStub(channel)
+          .withDeadlineAfter(300, TimeUnit.SECONDS);
 
-    private void initUI() {
-        setTitle("学习活动客户端");
-        setSize(400, 400);
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setLayout(new BorderLayout());
+         // 构建图形界面
+         JPanel panel = new JPanel(new GridLayout(5, 2));
+         panel.add(new JLabel("学生 ID:"));
+         panel.add(studentIdField);
+         panel.add(new JLabel("活动类型:"));
+         panel.add(activityTypeField);
+         panel.add(new JLabel("分钟数:"));
+         panel.add(minutesField);
+         panel.add(new JLabel("日期 (yyyy-MM-dd):"));
+         panel.add(dateField);
 
-        JPanel inputPanel = new JPanel(new GridLayout(4, 2));
-        inputPanel.add(new JLabel("学生 ID:"));
-        studentIdField = new JTextField();
-        inputPanel.add(studentIdField);
+         JButton sendButton = new JButton("提交学习记录");
+         panel.add(sendButton);
 
-        inputPanel.add(new JLabel("活动类型:"));
-        activityTypeField = new JTextField();
-        inputPanel.add(activityTypeField);
+         // 按钮点击事件：提交数据至服务器
+         sendButton.addActionListener(e -> {
+         String studentId = studentIdField.getText().trim();
+         String type = activityTypeField.getText().trim();
+         String minutesRaw = minutesField.getText().trim();
+         String date = dateField.getText().trim();
 
-        inputPanel.add(new JLabel("学习分钟:"));
-        minutesField = new JTextField();
-        inputPanel.add(minutesField);
+         // 简单字段检查
+         if (studentId.isEmpty() || type.isEmpty() || minutesRaw.isEmpty()) {
+             outputArea.setText("请完整填写学生 ID、活动类型和分钟数。");
+             return;
+         }
 
-        JButton submitButton = new JButton("提交活动");
-        submitButton.addActionListener(e -> sendActivity());
-        inputPanel.add(submitButton);
+         try {
+             int minutes = Integer.parseInt(minutesRaw);
+             if (minutes <= 0) {
+                 outputArea.setText("分钟数必须为正整数。");
+                 return;
+             }
 
-        JButton fetchButton = new JButton("获取记录");
-        fetchButton.addActionListener(e -> fetchActivity());
-        inputPanel.add(fetchButton);
+             // 若未填写日期则默认使用当前日期
+             if (date.isEmpty()) {
+                 date = LocalDate.now().toString();
+             }
+ 
+             // 构造请求消息对象
+             ActivityData request = ActivityData.newBuilder()
+                 .setStudentId(studentId)
+                 .setActivityType(type)
+                 .setMinutes(minutes)
+                 .setDate(date)
+                 .build();
 
-        add(inputPanel, BorderLayout.NORTH);
+             // 调用服务方法 reportActivity
+             ActivityAck response = blockingStub.reportActivity(request);
 
-        outputArea = new JTextArea();
-        outputArea.setEditable(false);
-        add(new JScrollPane(outputArea), BorderLayout.CENTER);
-    }
+             // 显示返回结果
+             outputArea.setText("结果：\n" + response.getMessage());
 
-    private void sendActivity() {
-        String id = studentIdField.getText();
-        String type = activityTypeField.getText();
-        int minutes = Integer.parseInt(minutesField.getText());
+         } catch (NumberFormatException ex) {
+             outputArea.setText("请输入有效的分钟数（正整数）。");
+         } catch (StatusRuntimeException ex) {
+             outputArea.setText("gRPC 通信错误：\n" +
+                 ex.getStatus().getCode() + "\n" +
+                 (ex.getStatus().getDescription() != null ? ex.getStatus().getDescription() : "未知错误"));
+         } catch (Exception ex) {
+             outputArea.setText("发生未知错误：" + ex.getMessage());
+     }
+ });
 
-        ActivityData data = ActivityData.newBuilder()
-                .setStudentId(id)
-                .setActivityType(type)
-                .setMinutes(minutes)
-                .setDate(LocalDate.now().toString())
-                .build();
-
-        asyncStub.reportActivity(data, new StreamObserver<ActivityAck>() {
-            @Override
-            public void onNext(ActivityAck value) {
-                outputArea.append("服务器回应: " + value.getMessage() + "\n");
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                outputArea.append("错误: " + t.getMessage() + "\n");
-            }
-
-            @Override
-            public void onCompleted() {
-                outputArea.append("提交完成。\n");
-            }
-        });
-    }
-
-    private void fetchActivity() {
-        String id = studentIdField.getText();
-        ActivityRequest request = ActivityRequest.newBuilder()
-                .setStudentId(id)
-                .build();
-
-        outputArea.append("获取记录中...\n");
-
-        try {
-            blockingStub.getRecentActivity(request).forEachRemaining(activity -> {
-                outputArea.append("" + activity.getActivityType()
-                        + " - " + activity.getMinutes()
-                        + "分钟 - " + activity.getDate() + "\n");
-            });
-        } catch (Exception e) {
-            outputArea.append("查询失败: " + e.getMessage() + "\n");
-        }
+       // 窗口设置
+       add(panel, BorderLayout.NORTH);
+       add(new JScrollPane(outputArea), BorderLayout.CENTER);
+       setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+       pack();
+       setVisible(true);
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            LearningActivityClientGUI client = new LearningActivityClientGUI();
-            client.setVisible(true);
-        });
+        SwingUtilities.invokeLater(LearningActivityClientGUI::new);
     }
 }
+
