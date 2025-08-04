@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.edusphere.progress";
+option java_outer_classname = "ProgressTrackerProto";
+
+// ProgressTrackerService 服务：用于跟踪用户完成课程的进度
+service ProgressTrackerService {
+// 用于记录用户完成了某门课程
+rpc RecordProgress(ProgressRequest) returns (ProgressResponse);
+
+// 检查某门课程是否已完成
+rpc CheckProgress(ProgressQuery) returns (ProgressStatus);
+
+// 列出所有已完成的课程
+rpc ListCompletedCourses(UserRequest) returns (CourseList);
+}
+
+// 客户端请求：记录课程完成情况
+message ProgressRequest {
+string user_id = 1; // 用户ID
+string course_name = 2; // 完成的课程名称
+}
+
+// 服务器响应：记录成功与否
+message ProgressResponse {
+bool success = 1; // 是否记录成功
+string message = 2; // 提示信息（如“已记录成功”）
+}
+
+// 请求查询某课程是否完成
+message ProgressQuery {
+string user_id = 1;
+string course_name = 2;
+}
+
+// 服务器返回：是否已完成
+message ProgressStatus {
+bool completed = 1; // 是否完成
+}
+
+// 请求：用户 ID（用于查询全部记录）
+message UserRequest {
+string user_id = 1;
+}
+
+// 响应：该用户所有已完成的课程
+message CourseList {
+repeated string course_names = 1;
+}

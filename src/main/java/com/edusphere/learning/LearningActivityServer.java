@@ -8,6 +8,7 @@ package com.edusphere.learning;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import com.edusphere.recommendation.CourseRecommendationImpl;
+import com.edusphere.progress.ProgressTrackerImpl;
 
 public class LearningActivityServer {
 
@@ -17,7 +18,8 @@ public class LearningActivityServer {
         // 创建并启动 gRPC 服务器
         Server server = ServerBuilder.forPort(port)
                 .addService(new LearningActivityImpl())
-                .addService(new CourseRecommendationImpl())// 注册服务实现类
+                .addService(new CourseRecommendationImpl())
+                .addService(new ProgressTrackerImpl()) // 注册服务实现类
                 .build()
                 .start();
 
