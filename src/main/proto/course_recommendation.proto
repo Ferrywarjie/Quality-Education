@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+// 生成的 Java 文件应放在这个包名下（你已有的结构是 com.edusphere）
+option java_package = "com.edusphere.recommendation";
+option java_multiple_files = true;
+option java_outer_classname = "CourseRecommendationProto";
+
+// 定义服务：课程推荐
+service CourseRecommendationService {
+  // 单次请求响应：客户端发送兴趣列表，服务端返回课程推荐
+  rpc GetRecommendations(RecommendationRequest) returns (RecommendationResponse);
+}
+
+// 客户端发送的请求数据结构
+message RecommendationRequest {
+  string student_id = 1;          // 学生 ID
+  repeated string interests = 2;  // 用户兴趣（列表）
+}
+
+// 服务端返回的推荐课程列表
+message RecommendationResponse {
+  repeated string courses = 1;    // 推荐课程名称（列表）
+}
+
