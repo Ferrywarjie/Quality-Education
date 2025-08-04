@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.edusphere.learning";
+option java_outer_classname = "LearningActivityProto";
+
+// 学习活动服务定义
+service LearningActivityService {
+  // Unary RPC：客户端上传一条学习记录
+  rpc ReportActivity(ActivityData) returns (ActivityAck);
+
+  // Server Streaming RPC：服务器返回学生最近的学习记录
+  rpc GetRecentActivity(ActivityRequest) returns (stream ActivityData);
+}
+
+// 用于上传和返回的学习活动数据结构
+message ActivityData {
+  string student_id = 1;
+  string activity_type = 2; // 例如："watch_video", "submit_assignment"
+  int32 minutes = 3;
+  string date = 4; // 格式：yyyy-MM-dd
+}
+
+// 请求学生记录的请求体
+message ActivityRequest {
+  string student_id = 1;
+}
+
+// 统一响应结构（用于确认或错误信息）
+message ActivityAck {
+  bool success = 1;
+  string message = 2;
+}
+
